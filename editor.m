@@ -22,11 +22,17 @@
 - (void)findNext:(id)sender;
 - (void)goToLine:(id)sender;
 - (void)openTerminal:(id)sender;
+- (void)insertSmartNewline;
+- (void)insertIndent;
 - (void)updateStatus;
 @end
 
 @implementation VZTextView
 - (void)keyDown:(NSEvent *)event {
+    if (event.keyCode == 36 || event.keyCode == 76) { [self.vzDelegate insertSmartNewline]; return; }
+    if (event.keyCode == 48 && !(event.modifierFlags & (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption))) {
+        [self.vzDelegate insertIndent]; return;
+    }
     if (event.keyCode == 120) { [self.vzDelegate saveDocument:self]; return; }       // F2
     if (event.keyCode == 99)  { [self.vzDelegate openDocument:self]; return; }       // F3
     if (event.keyCode == 96)  { [self.vzDelegate findText:self]; return; }           // F5
@@ -295,6 +301,54 @@
     task.arguments = @[@"-a", @"Terminal", directory.path];
     @try { [task launch]; }
     @catch (NSException *exception) { [self showError:exception.reason]; }
+}
+
+- (NSString *)indentUnit {
+    NSString *ext = self.fileURL.pathExtension.lowercaseString ?: @"";
+    NSSet *twoSpaces = [NSSet setWithArray:@[@"js", @"jsx", @"ts", @"tsx", @"json", @"html", @"htm", @"css", @"scss", @"vue", @"svelte", @"rb", @"sh", @"yaml", @"yml"]];
+    NSSet *fourSpaces = [NSSet setWithArray:@[@"py", @"c", @"h", @"cc", @"cpp", @"hpp", @"m", @"mm", @"java", @"cs", @"rs", @"swift", @"kt", @"kts"]];
+    if ([ext isEqualToString:@"go"]) return @"\t";
+    if ([twoSpaces containsObject:ext]) return @"  ";
+    if ([fourSpaces containsObject:ext]) return @"    ";
+    return @"    ";
+}
+
+- (BOOL)lineOpensBlock:(NSString *)trimmed {
+    if ([trimmed hasSuffix:@"{"] || [trimmed hasSuffix:@"("] || [trimmed hasSuffix:@"["]) return YES;
+    NSString *ext = self.fileURL.pathExtension.lowercaseString ?: @"";
+    if ([ext isEqualToString:@"py"] || [ext isEqualToString:@"yaml"] || [ext isEqualToString:@"yml"]) {
+        return [trimmed hasSuffix:@":"];
+    }
+    if ([ext isEqualToString:@"rb"] || [ext isEqualToString:@"sh"]) {
+        NSArray *words = @[@" do", @" then", @" case", @" begin"];
+        for (NSString *word in words) if ([trimmed hasSuffix:word] || [trimmed isEqualToString:[word substringFromIndex:1]]) return YES;
+    }
+    if ([ext isEqualToString:@"html"] || [ext isEqualToString:@"htm"] || [ext isEqualToString:@"xml"]) {
+        return [trimmed hasSuffix:@">"] && ![trimmed hasSuffix:@"/>"] && ![trimmed hasPrefix:@"</"] && ![trimmed hasPrefix:@"<!"];
+    }
+    return NO;
+}
+
+- (void)insertSmartNewline {
+    NSString *text = self.editor.string ?: @"";
+    NSRange selection = self.editor.selectedRange;
+    NSUInteger cursor = MIN(selection.location, text.length);
+    NSRange lineRange = [text lineRangeForRange:NSMakeRange(cursor, 0)];
+    NSUInteger beforeLength = cursor - lineRange.location;
+    NSString *before = [text substringWithRange:NSMakeRange(lineRange.location, beforeLength)];
+
+    NSCharacterSet *notWhitespace = [[NSCharacterSet whitespaceCharacterSet] invertedSet];
+    NSRange firstText = [before rangeOfCharacterFromSet:notWhitespace];
+    NSString *leading = firstText.location == NSNotFound ? before : [before substringToIndex:firstText.location];
+    NSString *trimmed = [before stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    NSString *extra = [self lineOpensBlock:trimmed] ? [self indentUnit] : @"";
+
+    NSString *insertion = [NSString stringWithFormat:@"\n%@%@", leading, extra];
+    [self.editor insertText:insertion replacementRange:selection];
+}
+
+- (void)insertIndent {
+    [self.editor insertText:[self indentUnit] replacementRange:self.editor.selectedRange];
 }
 
 - (void)textDidChange:(NSNotification *)notification { self.dirty = YES; [self refreshTitle]; [self updateStatus]; }

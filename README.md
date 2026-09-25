@@ -9,9 +9,10 @@ VZ Editorの軽快な操作感とファンクションキー中心のUIを、mac
 - 検索、次検索、指定行ジャンプ
 - 行・桁・総行数・文字数を常時表示
 - 編集中ファイルの場所をmacOSのターミナルで開く連携
+- 拡張子に応じた自動インデント（Goはタブ、Python/C系は4スペース、Web系は2スペース）
 - 等幅フォント、濃紺＋シアンのVZ風画面
 - 未保存変更の警告と標準Undo/Redo
-- F2/F3/F5/F6/F7による操作
+- F2/F3/F5/F6/F7/F8による操作
 
 ## 必要環境
 
@@ -38,6 +39,14 @@ open build/VZGoEditor.app
 | F8 / Command-Shift-T | この場所をターミナルで開く |
 
 MacBookでは設定により `fn` キーとの同時押しが必要です。
+
+## 自動インデント
+
+Enterキーで現在行の字下げを引き継ぎ、ブロック開始後は一段深くします。Tabキーもファイル形式に合う幅を挿入します。
+
+- Go: タブ
+- Python、C/C++、Java、Rust、Swift: 4スペース
+- JavaScript、TypeScript、HTML/CSS、JSON、YAML、Ruby、Shell: 2スペース
 
 ## 設計
 
